@@ -1,266 +1,390 @@
-# EntoSort Backend
+# 🐛 BSF Harvest System — Backend
 
-Backend API untuk sistem otomasi pemanenan dan penyortiran larva BSF berbasis IoT, MQTT, WebSocket, dan Computer Vision menggunakan Express.js dan Prisma.
-
----
-
-# Tech Stack
-
-* Node.js
-* Express.js
-* Prisma ORM
-* MySQL
-* JWT Authentication
-* MQTT
-* WebSocket
-* Joi Validation
-* MAMP (development)
+Backend production-ready untuk sistem otomasi pemanenan dan penyortiran larva **Black Soldier Fly (BSF)** berbasis Computer Vision.
 
 ---
 
-# Project Structure
+## 🏗️ Arsitektur Sistem
 
-```text
-entosort-be/
-│
+```
+Raspberry Pi 4 (Edge AI / OpenCV)
+    │
+    ├─── MQTT: harvest/result ──────────────┐
+    │                                       │
+ESP32 (Sensor + Motor Control)             ▼
+    │                              ┌─────────────────┐
+    ├─── MQTT: sensor/data/{id}    │   BACKEND        │
+    ├─── MQTT: sensor/status/{id}  │   Node.js +      │
+    └─── MQTT: device/error/{id}   │   Express +      │
+                                   │   Prisma + MySQL  │
+                            ┌──────┤                   ├──────┐
+                            │      └─────────────────┘      │
+                         REST API                       WebSocket
+                            │                               │
+                       Dashboard /                  Real-time updates
+                       Mobile App
+```
+
+---
+
+## 📁 Struktur Folder
+
+```
+bsf-backend/
 ├── prisma/
-│   ├── migrations/
-│   ├── schema.prisma
-│   └── seed.js
-│
+│   ├── schema.prisma          # Database schema & relasi
+│   └── seed.js                # Data awal (admin, node, settings)
 ├── src/
+│   ├── app.js                 # Entry point
 │   ├── config/
-│   ├── controllers/
+│   │   └── prisma.js          # Prisma client singleton
+│   ├── controllers/           # HTTP request handlers
+│   │   ├── auth.controller.js
+│   │   ├── user.controller.js
+│   │   ├── node.controller.js
+│   │   ├── sensor.controller.js
+│   │   ├── harvest.controller.js
+│   │   ├── control.controller.js
+│   │   ├── settings.controller.js
+│   │   ├── errorLog.controller.js
+│   │   ├── report.controller.js
+│   │   └── dashboard.controller.js
+│   ├── services/              # Business logic
+│   │   ├── auth.service.js
+│   │   ├── user.service.js
+│   │   ├── node.service.js
+│   │   ├── sensor.service.js
+│   │   ├── harvest.service.js
+│   │   ├── control.service.js
+│   │   ├── settings.service.js
+│   │   ├── errorLog.service.js
+│   │   ├── report.service.js
+│   │   └── dashboard.service.js
+│   ├── repositories/          # Database queries (Prisma)
+│   │   ├── user.repository.js
+│   │   ├── node.repository.js
+│   │   ├── sensor.repository.js
+│   │   ├── harvest.repository.js
+│   │   ├── errorLog.repository.js
+│   │   └── settings.repository.js
+│   ├── routes/                # Express routes
+│   │   ├── index.js
+│   │   ├── auth.routes.js
+│   │   ├── user.routes.js
+│   │   ├── node.routes.js
+│   │   ├── sensor.routes.js
+│   │   ├── harvest.routes.js
+│   │   ├── control.routes.js
+│   │   ├── settings.routes.js
+│   │   ├── error.routes.js
+│   │   ├── report.routes.js
+│   │   └── dashboard.routes.js
 │   ├── middleware/
+│   │   ├── auth.js            # JWT authenticate & authorize
+│   │   ├── errorHandler.js    # Global error handler + AppError
+│   │   └── validate.js        # Joi validation middleware
 │   ├── mqtt/
-│   ├── repositories/
-│   ├── routes/
-│   ├── services/
-│   ├── utils/
-│   ├── validations/
-│   └── app.js
-│
+│   │   ├── mqttClient.js      # MQTT init, subscribe, publish, route
+│   │   └── handlers/
+│   │       ├── sensor.handler.js
+│   │       ├── nodeStatus.handler.js
+│   │       ├── harvest.handler.js
+│   │       └── error.handler.js
+│   ├── validations/           # Joi schemas
+│   │   ├── auth.validation.js
+│   │   ├── user.validation.js
+│   │   ├── node.validation.js
+│   │   ├── harvest.validation.js
+│   │   ├── control.validation.js
+│   │   └── settings.validation.js
+│   └── utils/
+│       ├── catchAsync.js      # Async error wrapper
+│       ├── websocket.js       # WebSocket server & broadcast
+│       └── response.js        # Response helpers
 ├── .env.example
 ├── .gitignore
 ├── package.json
-└── prisma.config.ts
+└── README.md
 ```
 
 ---
 
-# Installation
+## ⚙️ Setup & Menjalankan
 
-## 1. Clone Repository
-
-```bash
-git clone https://github.com/Yukkkiik/entosort-be.git
-cd entosort-be
-```
-
----
-
-## 2. Install Dependencies
+### 1. Clone & Install Dependencies
 
 ```bash
+git clone <repo-url>
+cd bsf-backend
 npm install
 ```
 
----
-
-## 3. Setup Environment Variables
-
-Copy `.env.example` menjadi `.env`:
+### 2. Konfigurasi Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Isi konfigurasi database dan JWT pada file `.env`.
-
-Contoh:
+Edit file `.env`:
 
 ```env
 PORT=3000
 NODE_ENV=development
 
-DATABASE_URL="mysql://root:root@localhost:8889/entosort_db"
+DATABASE_URL="mysql://root:password@localhost:3306/bsf_db"
 
-JWT_SECRET=your_secret_key
+JWT_SECRET=ganti_dengan_secret_yang_kuat
 JWT_EXPIRES_IN=7d
 
 MQTT_HOST=localhost
 MQTT_PORT=1883
 MQTT_USERNAME=
 MQTT_PASSWORD=
-MQTT_CLIENT_ID=entosort-backend
+MQTT_CLIENT_ID=bsf-backend-server
 
 WS_PORT=3001
 ```
 
----
-
-# Database Setup
-
-## 1. Jalankan MySQL
-
-Pastikan MySQL aktif.
-
-Jika menggunakan MAMP:
-
-* Host: `localhost`
-* Port: `8889`
-* Username: `root`
-* Password: `root`
-
----
-
-## 2. Buat Database
+### 3. Setup Database MySQL
 
 ```sql
-CREATE DATABASE entosort_db;
+CREATE DATABASE bsf_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
----
-
-## 3. Generate Prisma Client
+### 4. Prisma Migration & Generate
 
 ```bash
-npx prisma generate
-```
+# Generate Prisma client
+npm run prisma:generate
 
----
+# Jalankan migrasi (buat tabel)
+npm run prisma:migrate
+# Masukkan nama migrasi, misal: init_bsf_schema
 
-## 4. Jalankan Migration
-
-```bash
-npx prisma migrate dev --name init
-```
-
----
-
-## 5. Jalankan Seeder
-
-```bash
+# Seed data awal
 npm run prisma:seed
 ```
 
----
-
-# Running Project
-
-## Development Mode
+### 5. Setup MQTT Broker (Mosquitto)
 
 ```bash
-npm run dev
+# Install di Ubuntu/Debian
+sudo apt install mosquitto mosquitto-clients -y
+sudo systemctl enable mosquitto
+sudo systemctl start mosquitto
+
+# Test broker
+mosquitto_pub -t "test/hello" -m "world"
+mosquitto_sub -t "test/hello"
 ```
 
-## Production Mode
+### 6. Jalankan Server
 
 ```bash
+# Development (auto-reload)
+npm run dev
+
+# Production
 npm start
 ```
 
----
-
-# Prisma Commands
-
-## Generate Prisma Client
-
-```bash
-npm run prisma:generate
+Output yang diharapkan:
 ```
+🚀 BSF Backend running on port 3000
+📡 Environment: development
+🌐 Health check: http://localhost:3000/health
 
-## Run Migration
-
-```bash
-npm run prisma:migrate
-```
-
-## Open Prisma Studio
-
-```bash
-npm run prisma:studio
-```
-
-## Run Seeder
-
-```bash
-npm run prisma:seed
+📡 Connecting to MQTT broker: mqtt://localhost:1883
+✅ MQTT connected
+📬 MQTT subscribed to topics: [...]
+🔌 WebSocket server running on port 3001
 ```
 
 ---
 
-# Authentication
+## 📡 MQTT Topic Design
 
-Backend menggunakan JWT Authentication.
+| Topic | Arah | Keterangan |
+|-------|------|------------|
+| `sensor/data/{nodeId}` | ESP32 → Backend | Data suhu, kelembapan, tekanan |
+| `sensor/status/{nodeId}` | ESP32 → Backend | Status online/offline node |
+| `harvest/result` | Raspberry Pi → Backend | Hasil klasifikasi CV |
+| `device/control/{nodeId}` | Backend → ESP32 | Perintah kontrol (motor, solenoid, settings) |
+| `device/error/{nodeId}` | ESP32/RPi → Backend | Laporan error perangkat |
 
-Authorization header:
+### Contoh Payload MQTT
 
-```http
-Authorization: Bearer your_token
+**sensor/data/NODE-001**
+```json
+{
+  "temperature": 28.5,
+  "humidity": 72.3,
+  "pressure": 1013.25
+}
 ```
 
-Middleware:
+**harvest/result**
+```json
+{
+  "nodeId": "NODE-001",
+  "larvaCount": 120,
+  "prepupaCount": 30,
+  "rejectCount": 5,
+  "durationSec": 45
+}
+```
 
-* `authenticate`
-* `authorize`
+**device/control/NODE-001** (dikirim dari backend)
+```json
+{
+  "command": "motor",
+  "action": "on",
+  "speedRpm": 100,
+  "timestamp": "2025-01-01T08:00:00.000Z"
+}
+```
 
-Role-based authorization didukung.
-
----
-
-# API Features
-
-* Authentication & Authorization
-* Node Management
-* Sensor Logging
-* Harvest Logging
-* Error Logging
-* MQTT Communication
-* WebSocket Realtime Update
-* CSV Export
-* PDF Report
-
----
-
-# Environment Variables
-
-| Variable       | Description               |
-| -------------- | ------------------------- |
-| PORT           | Express server port       |
-| DATABASE_URL   | MySQL database connection |
-| JWT_SECRET     | JWT secret key            |
-| JWT_EXPIRES_IN | JWT expiration time       |
-| MQTT_HOST      | MQTT broker host          |
-| MQTT_PORT      | MQTT broker port          |
-| MQTT_USERNAME  | MQTT username             |
-| MQTT_PASSWORD  | MQTT password             |
-| MQTT_CLIENT_ID | MQTT client identifier    |
-| WS_PORT        | WebSocket server port     |
-
----
-
-# Git Ignore
-
-File berikut tidak diupload ke repository:
-
-```gitignore
-node_modules/
-.env
+**device/error/NODE-001**
+```json
+{
+  "errorCode": "CAM_001",
+  "errorType": "camera_error",
+  "message": "Camera not detected",
+  "severity": "high"
+}
 ```
 
 ---
 
-# Recommended Node Version
+## 🌐 API Endpoints
 
-Disarankan menggunakan:
+Base URL: `http://localhost:3000/api`
 
-```text
-Node.js v20 LTS
+> Semua endpoint kecuali `POST /auth/login` memerlukan header:
+> `Authorization: Bearer <token>`
+
+### Auth
+| Method | Endpoint | Akses |
+|--------|----------|-------|
+| POST | `/auth/login` | Public |
+| POST | `/auth/logout` | Semua user |
+
+### User Management
+| Method | Endpoint | Akses |
+|--------|----------|-------|
+| GET | `/users` | Admin |
+| POST | `/users` | Admin |
+| PUT | `/users/:id` | Admin |
+| DELETE | `/users/:id` | Admin |
+
+### Node
+| Method | Endpoint | Akses |
+|--------|----------|-------|
+| GET | `/nodes` | Semua |
+| GET | `/nodes/:id/status` | Semua |
+| POST | `/nodes` | Admin |
+| PUT | `/nodes/:id` | Admin |
+| DELETE | `/nodes/:id` | Admin |
+
+### Sensor
+| Method | Endpoint | Query Params |
+|--------|----------|-------------|
+| GET | `/sensor/latest` | `nodeId` |
+| GET | `/sensor/history` | `nodeId`, `from`, `to`, `limit` |
+
+### Harvest
+| Method | Endpoint | Query Params |
+|--------|----------|-------------|
+| POST | `/harvest` | - |
+| GET | `/harvest` | `nodeId`, `from`, `to`, `page`, `limit` |
+| GET | `/harvest/stats` | `nodeId`, `from`, `to` |
+
+### Control
+| Method | Endpoint | Body |
+|--------|----------|------|
+| POST | `/control/motor` | `{ nodeId, action, speedRpm }` |
+| POST | `/control/solenoid` | `{ nodeId, action, delayMs }` |
+| POST | `/control/manual-mode` | `{ nodeId, enabled }` |
+
+### Settings
+| Method | Endpoint | Akses |
+|--------|----------|-------|
+| GET | `/settings` | Semua |
+| PUT | `/settings` | Admin |
+
+### Error Logs
+| Method | Endpoint | Query Params |
+|--------|----------|-------------|
+| GET | `/errors` | `nodeId`, `resolved`, `severity`, `limit` |
+| POST | `/errors/resolve/:id` | - |
+
+### Report
+| Method | Endpoint | Query Params |
+|--------|----------|-------------|
+| GET | `/report/daily` | `date`, `nodeId` |
+| GET | `/report/export/pdf` | `from`, `to` |
+| GET | `/report/export/csv` | `from`, `to` |
+
+### Dashboard
+| Method | Endpoint | Keterangan |
+|--------|----------|------------|
+| GET | `/dashboard/summary` | Ringkasan lengkap sistem |
+
+---
+
+## 🔌 WebSocket (Real-time Dashboard)
+
+Connect ke: `ws://localhost:3001`
+
+Event types yang diterima:
+```json
+{ "type": "sensor_update", "payload": { ... } }
+{ "type": "node_status",   "payload": { ... } }
+{ "type": "harvest_update","payload": { ... } }
+{ "type": "error_alert",   "payload": { ... } }
 ```
 
 ---
 
-# Author
+## 🔐 Default Credentials (Setelah Seed)
 
-Developed for PBL EntoSort Project.
+| Username | Password | Role |
+|----------|----------|------|
+| admin | admin123 | admin |
+| peternak1 | peternak123 | peternak |
+
+> ⚠️ **Ganti password default sebelum deploy ke production!**
+
+---
+
+## 🗄️ Database Schema (ERD Ringkas)
+
+```
+User (1) ──────< HarvestLog (N)
+Node (1) ──────< SensorLog  (N)
+Node (1) ──────< HarvestLog (N)
+Node (1) ──────< ErrorLog   (N)
+Node (1) ───── Settings     (1)
+```
+
+---
+
+## 🚀 Tips Production
+
+1. Gunakan **PM2** untuk process management:
+   ```bash
+   npm install -g pm2
+   pm2 start src/app.js --name bsf-backend
+   pm2 save && pm2 startup
+   ```
+
+2. Gunakan **Nginx** sebagai reverse proxy
+
+3. Aktifkan autentikasi pada **Mosquitto**:
+   ```bash
+   mosquitto_passwd -c /etc/mosquitto/passwd bsf_user
+   ```
+
+4. Set `NODE_ENV=production` di `.env`
+
+5. Tambahkan **Redis** untuk JWT blacklist pada logout

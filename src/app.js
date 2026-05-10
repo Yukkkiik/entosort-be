@@ -8,8 +8,8 @@ const rateLimit = require('express-rate-limit');
 
 const routes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
-const { initMqtt } = require('./mqtt/mqttClient');
-const { initWebSocket } = require('./utils/websocket');
+// const { initMqtt } = require('./mqtt/mqttClient');
+// const { initWebSocket } = require('./utils/websocket');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -74,10 +74,10 @@ const server = app.listen(PORT, () => {
   console.log(`🌐 Health check: http://localhost:${PORT}/health\n`);
 
   // Initialize MQTT client
-  initMqtt();
+//   initMqtt();
 
   // Initialize WebSocket server
-  initWebSocket(WS_PORT);
+//   initWebSocket(WS_PORT);
 });
 
 // Graceful shutdown
