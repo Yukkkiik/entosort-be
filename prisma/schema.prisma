@@ -1,0 +1,151 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ================================
+// USER
+// ================================
+model User {
+  id          Int          @id @default(autoincrement())
+  username    String       @unique @db.VarChar(100)
+  password    String       @db.VarChar(255)
+  role        UserRole     @default(peternak)
+  phone       String?      @db.VarChar(20)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  harvestLogs HarvestLog[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  admin
+  peternak
+}
+
+// ================================
+// NODE
+// ================================
+model Node {
+  id          Int          @id @default(autoincrement())
+  nodeId      String       @unique @db.VarChar(50)
+  ipAddress   String?      @db.VarChar(45)
+  status      NodeStatus   @default(offline)
+  firmware    String?      @db.VarChar(50)
+  lastSeen    DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  sensorLogs  SensorLog[]
+  harvestLogs HarvestLog[]
+  errorLogs   ErrorLog[]
+  settings    Settings?
+
+  @@map("nodes")
+}
+
+enum NodeStatus {
+  online
+  offline
+}
+
+// ================================
+// SENSOR LOG
+// ================================
+model SensorLog {
+  id          Int      @id @default(autoincrement())
+  nodeId      String   @db.VarChar(50)
+  temperature Float
+  humidity    Float
+  pressure    Float
+  recordedAt  DateTime @default(now())
+
+  node        Node     @relation(fields: [nodeId], references: [nodeId], onDelete: Cascade)
+
+  @@index([nodeId])
+  @@index([recordedAt])
+  @@map("sensor_logs")
+}
+
+// ================================
+// HARVEST LOG
+// ================================
+model HarvestLog {
+  id           Int      @id @default(autoincrement())
+  nodeId       String   @db.VarChar(50)
+  userId       Int?
+  larvaCount   Int      @default(0)
+  prepupaCount Int      @default(0)
+  rejectCount  Int      @default(0)
+  totalCount   Int      @default(0)
+  durationSec  Int?
+  notes        String?  @db.Text
+  recordedAt   DateTime @default(now())
+
+  node         Node     @relation(fields: [nodeId], references: [nodeId], onDelete: Cascade)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([nodeId])
+  @@index([recordedAt])
+  @@map("harvest_logs")
+}
+
+// ================================
+// ERROR LOG
+// ================================
+model ErrorLog {
+  id          Int           @id @default(autoincrement())
+  nodeId      String        @db.VarChar(50)
+  errorCode   String?       @db.VarChar(50)
+  errorType   String        @db.VarChar(100)
+  message     String        @db.Text
+  severity    ErrorSeverity @default(medium)
+  occurredAt  DateTime      @default(now())
+  resolved    Boolean       @default(false)
+
+  node        Node          @relation(fields: [nodeId], references: [nodeId], onDelete: Cascade)
+
+  @@index([nodeId])
+  @@index([resolved])
+  @@map("error_logs")
+}
+
+enum ErrorSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+// ================================
+// SETTINGS
+// ================================
+model Settings {
+  id               Int      @id @default(autoincrement())
+  nodeId           String   @unique @db.VarChar(50)
+  hsvLowerH        Int      @default(0)
+  hsvLowerS        Int      @default(0)
+  hsvLowerV        Int      @default(0)
+  hsvUpperH        Int      @default(179)
+  hsvUpperS        Int      @default(255)
+  hsvUpperV        Int      @default(255)
+  irThreshold      Int      @default(500)
+  motorSpeedRpm    Int      @default(100)
+  solenoidDelayMs  Int      @default(200)
+  manualMode       Boolean  @default(false)
+  motorOn          Boolean  @default(false)
+  solenoidOn       Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+
+  node             Node     @relation(fields: [nodeId], references: [nodeId], onDelete: Cascade)
+
+  @@map("settings")
+}
