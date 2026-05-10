@@ -4,12 +4,12 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
 
 const routes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
-// const { initMqtt } = require('./mqtt/mqttClient');
-// const { initWebSocket } = require('./utils/websocket');
+const rateLimiter = require('../src/middleware/rateLimiter')
+const { initMqtt } = require('./mqtt/mqttClient');
+const { initWebSocket } = require('./utils/websocket');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,16 +24,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
-// ================================
-// RATE LIMITING
-// ================================
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
-  message: { success: false, message: 'Too many requests, please try again later.' },
-});
-app.use('/api', limiter);
 
 // ================================
 // GENERAL MIDDLEWARE
@@ -55,9 +45,9 @@ app.get('/health', (req, res) => {
 });
 
 // ================================
-// ROUTES
+// ROUTES & RATE LIMITER
 // ================================
-app.use('/api', routes);
+app.use('/api', rateLimiter,routes);
 
 // ================================
 // ERROR HANDLERS
@@ -74,10 +64,10 @@ const server = app.listen(PORT, () => {
   console.log(`🌐 Health check: http://localhost:${PORT}/health\n`);
 
   // Initialize MQTT client
-//   initMqtt();
+  initMqtt();
 
   // Initialize WebSocket server
-//   initWebSocket(WS_PORT);
+  initWebSocket(WS_PORT);
 });
 
 // Graceful shutdown

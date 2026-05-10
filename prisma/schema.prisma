@@ -9,6 +9,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  admin
+  peternak
+}
+
+enum NodeType {
+  microcontroller
+  raspberry
+}
+
 // ================================
 // USER
 // ================================
@@ -26,17 +36,13 @@ model User {
   @@map("users")
 }
 
-enum UserRole {
-  admin
-  peternak
-}
-
 // ================================
 // NODE
 // ================================
 model Node {
   id          Int          @id @default(autoincrement())
   nodeId      String       @unique @db.VarChar(50)
+  nodeType    NodeType     @default(microcontroller)
   ipAddress   String?      @db.VarChar(45)
   status      NodeStatus   @default(offline)
   firmware    String?      @db.VarChar(50)
