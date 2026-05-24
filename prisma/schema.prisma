@@ -19,6 +19,19 @@ enum NodeType {
   raspberry
 }
 
+enum ErrorSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+
+enum NodeStatus {
+  online
+  offline
+} 
+
 // ================================
 // USER
 // ================================
@@ -31,6 +44,7 @@ model User {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  nodes Node[]
   harvestLogs HarvestLog[]
 
   @@map("users")
@@ -42,6 +56,7 @@ model User {
 model Node {
   id          Int          @id @default(autoincrement())
   nodeId      String       @unique @db.VarChar(50)
+  userId      Int?
   nodeType    NodeType     @default(microcontroller)
   ipAddress   String?      @db.VarChar(45)
   status      NodeStatus   @default(offline)
@@ -50,17 +65,14 @@ model Node {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   sensorLogs  SensorLog[]
   harvestLogs HarvestLog[]
   errorLogs   ErrorLog[]
   settings    Settings?
 
   @@map("nodes")
-}
-
-enum NodeStatus {
-  online
-  offline
 }
 
 // ================================
@@ -124,12 +136,6 @@ model ErrorLog {
   @@map("error_logs")
 }
 
-enum ErrorSeverity {
-  low
-  medium
-  high
-  critical
-}
 
 // ================================
 // SETTINGS

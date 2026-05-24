@@ -6,6 +6,6 @@ const validate = require('../middleware/validate');
 const { loginSchema } = require('../validations/auth.validation');
 
 router.post('/login', validate(loginSchema), authController.login);
-router.post('/logout', authenticate, authController.logout);
+router.post('/logout', authController.logout);
 
 module.exports = router;

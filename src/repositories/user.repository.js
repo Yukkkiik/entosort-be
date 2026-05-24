@@ -1,7 +1,30 @@
 const prisma = require('../config/prisma');
 
+const nodeSelect = {
+    id: true,
+    nodeId: true,
+    nodeType: true,
+    status: true,
+    ipAddress: true,
+    firmware: true,
+    lastSeen: true,
+    createdAt: true,
+};
+
+const userSelect = {
+    id:        true,
+    username:  true,
+    role:      true,
+    phone:     true,
+    createdAt: true,
+    updatedAt: true,
+}
+
 const findAll = () => prisma.user.findMany({
-    select: { id: true, username: true, role: true, phone: true, createdAt: true, updatedAt: true},
+    select: { 
+        ...userSelect,
+        nodes: {select: nodeSelect}
+    },
     orderBy: { createdAt: 'desc'},
 });
 

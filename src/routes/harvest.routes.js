@@ -1,16 +1,15 @@
+// src/routes/harvest.routes.js
 const express = require('express');
 const router = express.Router();
-const nodeController = require('../controllers/node.controller');
-const { authenticate, authorize } = require('../middleware/auth');
+const harvestController = require('../controllers/harvest.controller');
+const { authenticate } = require('../middleware/auth');
 const validate = require('../middleware/validate');
-const { createNodeSchema } = require('../validations/node.validation');
+const { createHarvestSchema } = require('../validations/harvest.validation');
 
 router.use(authenticate);
 
-router.get('/', nodeController.getAll);
-router.get('/:id/status', nodeController.getStatus);
-router.post('/', authorize('admin'), validate(createNodeSchema), nodeController.create);
-router.put('/:id', authorize('admin'), nodeController.update);
-router.delete('/:id', authorize('admin'), nodeController.remove);
+router.post('/', validate(createHarvestSchema), harvestController.create);
+router.get('/', harvestController.getAll);
+router.get('/stats', harvestController.getStats);
 
 module.exports = router;

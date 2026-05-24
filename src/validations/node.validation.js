@@ -13,5 +13,9 @@ const updateNodeSchema = Joi.object({
   firmware:  Joi.string().max(50).optional().allow('', null),
   status:    Joi.string().valid('online', 'offline').optional(),
 }).min(1);
+
+const assignUserSchema = Joi.object({
+  userId: Joi.number().integer().positive().required(),
+});
  
-module.exports = { createNodeSchema, updateNodeSchema };
+module.exports = { createNodeSchema, assignUserSchema, updateNodeSchema };

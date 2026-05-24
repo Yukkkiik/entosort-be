@@ -3,6 +3,7 @@ const { handleSensorData } = require('./handlers/sensor.handler');
 const { handleNodeStatus } = require('./handlers/nodeStatus.handler');
 const { handleHarvestResult } = require('./handlers/harvest.handler');
 const { handleDeviceError } = require('./handlers/error.handler');
+const { handleInfraredData } = require('./handlers/trigger.handler')
 
 let client = null;
 
@@ -14,6 +15,7 @@ const TOPICS = {
   SENSOR_STATUS:  'sensor/status/+',    // sensor/status/{nodeId}
   HARVEST_RESULT: 'harvest/result',     // from Raspberry Pi CV
   DEVICE_ERROR:   'device/error/+',     // device/error/{nodeId}
+  TRIGGER_DATA: 'sensor/trigger/+'
 };
 
 const initMqtt = () => {
