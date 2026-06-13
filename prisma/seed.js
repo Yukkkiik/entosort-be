@@ -1,130 +1,57 @@
 // prisma/seed.js
 const { PrismaClient } = require('@prisma/client');
-const { hashPassword } = require('../src/utils/password');
+const { seedUsers }      = require('./seeders/01_users');
+const { seedUnits }      = require('./seeders/02_units');
+const { seedNodes }      = require('./seeders/03_nodes');
+const { seedSettings }   = require('./seeders/04_settings');
+const { seedSensorLogs } = require('./seeders/05_sensor_logs');
+const { seedHarvestLogs} = require('./seeders/06_harvest_logs');
+const { seedErrorLogs }  = require('./seeders/07_error_logs');
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Starting seed...\n');
 
-  const admin = await prisma.user.upsert({
-    where: { username: 'admin' },
-    update: {},
-    create: {
-      username: 'admin',
-      password: await hashPassword('admin123'),
-      role: 'admin',
-      phone: '08123456789',
-    },
-  });
-  console.log('✅ Admin created:', admin.username);
+  console.log('📦 [1/7] Users');
+  const users = await seedUsers();
 
-  const peternak = await prisma.user.upsert({
-    where: { username: 'peternak1' },
-    update: {},
-    create: {
-      username: 'peternak1',
-      password: await hashPassword('peternak123'),
-      role: 'peternak',
-      phone: '08987654321',
-    },
-  });
-  console.log('✅ Peternak created:', peternak.username);
+  console.log('\n📦 [2/7] Units');
+  const units = await seedUnits(users);
 
-  // Node microcontroller → userId peternak1
-  const microcontroller = await prisma.node.upsert({
-    where: { nodeId: 'NODE-ESP32-001' },
-    update: {},
-    create: {
-      nodeId:    'NODE-ESP32-001',
-      nodeType:  'microcontroller',
-      ipAddress: '192.168.1.100',
-      status:    'offline',
-      firmware:  'v1.0.0',
-      userId:    peternak.id,
-    },
-  });
-  console.log('✅ microcontroller node created:', microcontroller.nodeId, '→ userId:', peternak.id);
+  console.log('\n📦 [3/7] Nodes (ESP32 + RPi)');
+  const nodes = await seedNodes(units);
 
-  // Node Raspberry Pi → userId peternak1
-  const rpi = await prisma.node.upsert({
-    where: { nodeId: 'NODE-RPI-001' },
-    update: {},
-    create: {
-      nodeId:    'NODE-RPI-001',
-      nodeType:  'raspberry',
-      ipAddress: '192.168.1.101',
-      status:    'offline',
-      firmware:  'v2.0.0',
-      userId:    peternak.id,
-    },
-  });
-  console.log('✅ Raspberry Pi node created:', rpi.nodeId, '→ userId:', peternak.id);
+  console.log('\n📦 [4/7] Settings');
+  await seedSettings(units);
 
-  // Default settings ESP32
-  await prisma.settings.upsert({
-    where: { nodeId: 'NODE-ESP32-001' },
-    update: {},
-    create: {
-      nodeId:         'NODE-ESP32-001',
-      hsvLowerH: 20, hsvLowerS: 50, hsvLowerV: 50,
-      hsvUpperH: 40, hsvUpperS: 255, hsvUpperV: 255,
-      irThreshold:    500,
-      motorSpeedRpm:  80,
-      solenoidDelayMs: 300,
-    },
-  });
-  console.log('✅ Default settings created for NODE-ESP32-001');
+  console.log('\n📦 [5/7] Sensor logs (24 jam terakhir)');
+  await seedSensorLogs(units, nodes);
 
-  const existingHarvest = await prisma.HarvestLog.count({
-    where: { nodeId: 'NODE-ESP32-001' }
-  });
+  console.log('\n📦 [6/7] Harvest logs (30 hari terakhir)');
+  await seedHarvestLogs(units, users);
 
-  if (existingHarvest === 0) {
-    const harvests = [
-      {
-        nodeId: 'NODE-ESP32-001',
-        userId: peternak.id,
-        larvaCount: 1200,
-        prepupaCount: 80,
-        rejectCount: 45,
-        totalCount: 1325,
-        durationSec: 3600,
-        notes: 'Panen pertama batch 1',
-        recordedAt: new Date('2026-05-01T08:00:00'),
-      },
-      {
-        nodeId: 'NODE-ESP32-001',
-        userId: peternak.id,
-        larvaCount: 1500,
-        prepupaCount: 95,
-        rejectCount: 30,
-        totalCount: 1625,
-        durationSec: 4200,
-        notes: 'Panen kedua batch 1',
-        recordedAt: new Date('2026-05-08T09:00:00'),
-      },
-      {
-        nodeId: 'NODE-ESP32-001',
-        userId: peternak.id,
-        larvaCount: 980,
-        prepupaCount: 60,
-        rejectCount: 55,
-        totalCount: 1095,
-        durationSec: 3000,
-        notes: 'Panen ketiga - cuaca kurang mendukung',
-        recordedAt: new Date('2026-05-15T07:30:00'),
-      },
-    ];
+  console.log('\n📦 [7/7] Error logs');
+  await seedErrorLogs(units);
 
-    await prisma.HarvestLog.createMany({ data: harvests });
-    console.log('✅ Harvest data created:', harvests.length, 'records');
-  } else {
-    console.log('⏭️  Harvest data already exists, skipping...');
-  }
-   console.log('\n🎉 Seeding complete!');
+  console.log('\n✅ Seed selesai!\n');
+  console.log('━'.repeat(50));
+  console.log('Akun untuk testing:');
+  console.log('━'.repeat(50));
+  console.log('  superadmin   / superadmin123  (superadmin)');
+  console.log('  admin_sulut  / admin123        (admin)');
+  console.log('  admin_bolsel / admin123        (admin)');
+  console.log('  peternak_andi  / peternak123   (peternak) → UNIT-BSF-001');
+  console.log('  peternak_budi  / peternak123   (peternak) → UNIT-BSF-002');
+  console.log('  peternak_citra / peternak123   (peternak) → UNIT-BSF-003');
+  console.log('━'.repeat(50));
 }
 
 main()
-  .catch((e) => { console.error('❌ Seed error:', e); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+  .catch((e) => {
+    console.error('❌ Seed gagal:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

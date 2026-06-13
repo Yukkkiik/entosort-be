@@ -1,55 +1,49 @@
 // src/services/node.service.js
-const userRepo = require('../repositories/user.repository');
 const nodeRepo = require('../repositories/node.repository');
+const unitRepo = require('../repositories/unit.repository');
 const { AppError } = require('../middleware/errorHandler');
 
-const getAll = () => nodeRepo.findAll();
+// ─────────────────────────────────────────────────────────────
+// Helper: cek akses node via unit
+// superadmin : bebas semua node
+// admin      : hanya node dari unit yang adminId = user.id
+// peternak   : hanya node dari unit yang peterId = user.id
+// ─────────────────────────────────────────────────────────────
+const checkNodeAccess = async (unitId, user) => {
+  if (user.role === 'superadmin') return; // superadmin bebas
 
-const getUserById = (userId) => nodeRepo.findByUserId(Number(userId));
+  const unit = await unitRepo.findByUnitId(unitId);
+  if (!unit) throw new AppError(`Unit '${unitId}' not found`, 404);
 
-const getStatus = async (id) => {
-  const node = await nodeRepo.findById(Number(id));
-  if (!node) throw new AppError('Node not found', 404);
-  return node;
-};
-
-const create = async (data) => {
-  const existing = await nodeRepo.findByNodeId(data.nodeId);
-  if (existing) throw new AppError('Node ID already exists', 409);
-
-  if (data.userId) {
-    const user = await userRepo.findById(Number(data.userId));
-    if (!user) throw new AppError('User not found', 404)
+  if (user.role === 'admin' && unit.adminId !== user.id) {
+    throw new AppError('Akses ditolak: unit ini bukan milik Anda', 403);
   }
-  return nodeRepo.create(data);
+  if (user.role === 'peternak' && unit.peterId !== user.id) {
+    throw new AppError('Akses ditolak: unit ini bukan milik Anda', 403);
+  }
 };
 
-const update = async (id, data) => {
-  const node = await nodeRepo.findById(Number(id));
-  if (!node) throw new AppError('Node not found', 404);
-  return nodeRepo.update(Number(id), data);
+// ─────────────────────────────────────────────────────────────
+// getByUnitId — semua node (ESP32 + RPi) milik unit
+// ─────────────────────────────────────────────────────────────
+const getByUnitId = async (unitId, user) => {
+  await checkNodeAccess(unitId, user);
+  return nodeRepo.findByUnitId(unitId);
 };
 
-const assignUser = async(nodeId, userId) => {
-  const node = await nodeRepo.findByNodeId(nodeId);
-  if (!node) throw new AppError('Node not found', 404);
+// ─────────────────────────────────────────────────────────────
+// Dipanggil dari MQTT handler — tidak butuh auth check
+// ─────────────────────────────────────────────────────────────
+const heartbeat = ({ nodeId, unitId, nodeType, ipAddress, firmware }) =>
+  nodeRepo.upsertByNodeId(nodeId, {
+    unitId,
+    nodeType,
+    ipAddress,
+    firmware,
+    status:   'online',
+    lastSeen: new Date(),
+  });
 
-  const user = await userRepo.findById(userId);
-  if (!user) throw new AppError('User not found', 404);
-  
-  return nodeRepo.assignUser(nodeId, Number(userId));
-};
+const markOffline = (nodeId) => nodeRepo.updateStatus(nodeId, 'offline');
 
-const removeUser = async(nodeId) => {
-  const node = await nodeRepo.findByNodeId(nodeId);
-  if (!node) throw new AppError('Node not found', 404);
-  return nodeRepo.removeUser(nodeId);
-}
-
-const remove = async (id) => {
-  const node = await nodeRepo.findById(Number(id));
-  if (!node) throw new AppError('Node not found', 404);
-  await nodeRepo.remove(Number(id));
-};
-
-module.exports = { getAll,getUserById, getStatus, create,assignUser,removeUser, update, remove };
+module.exports = { getByUnitId, heartbeat, markOffline };

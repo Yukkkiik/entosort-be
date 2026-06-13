@@ -1,80 +1,88 @@
+// src/services/harvest.service.js
 const harvestRepo = require('../repositories/harvest.repository');
-const nodeRepo = require('../repositories/node.repository');
+const unitRepo = require('../repositories/unit.repository');
 const { AppError } = require('../middleware/errorHandler');
 const mqttClient = require('../mqtt/mqttClient');
 
 /**
- * Create a new harvest log entry.
- * Triggered either from REST API (manual) or MQTT (from Raspberry Pi CV result).
+ * Buat satu sesi panen.
+ * Dipicu dari REST (manual) atau MQTT (hasil CV dari Raspberry Pi).
  */
-const create = async ({ nodeId, userId, larvaCount, prepupaCount, rejectCount, durationSec, notes }) => {
-  // Validate node exists
-  const node = await nodeRepo.findByNodeId(nodeId);
-  if (!node) throw new AppError(`Node '${nodeId}' not found`, 404);
+const create = async ({
+  unitId,
+  userId,
+  larvaCount,
+  prepupaCount,
+  rejectCount,
+  durationSec,
+  notes,
+  triggerSource,
+}) => {
+  const unit = await unitRepo.findByUnitId(unitId);
+  if (!unit) throw new AppError(`Unit '${unitId}' not found`, 404);
 
-  const totalCount = larvaCount + prepupaCount + rejectCount;
+  const larva = Number(larvaCount) || 0;
+  const prepupa = Number(prepupaCount) || 0;
+  const reject = Number(rejectCount) || 0;
+  const totalCount = larva + prepupa + reject;
 
   const harvest = await harvestRepo.create({
-    nodeId,
+    unitId,
     userId: userId || null,
-    larvaCount,
-    prepupaCount,
-    rejectCount,
+    larvaCount: larva,
+    prepupaCount: prepupa,
+    rejectCount: reject,
     totalCount,
     durationSec: durationSec || null,
     notes: notes || null,
+    triggerSource: triggerSource || 'ir_sensor',
   });
 
-  // After saving, publish MQTT sorting command to ESP32
-  // Trigger separation based on classification result
-  const controlPayload = {
-    event: 'sort_trigger',
-    larvaCount,
-    prepupaCount,
-    rejectCount,
-    timestamp: new Date().toISOString(),
-  };
-  mqttClient.publish(`device/control/${nodeId}`, JSON.stringify(controlPayload));
+  // Setelah klasifikasi, perintahkan ESP32 menjalankan pemisahan
+  mqttClient.publish(
+    `device/control/${unitId}`,
+    JSON.stringify({
+      event: 'sort_trigger',
+      larvaCount: larva,
+      prepupaCount: prepupa,
+      rejectCount: reject,
+      timestamp: new Date().toISOString(),
+    })
+  );
 
   return harvest;
 };
 
-/**
- * Get paginated harvest logs with optional filters.
- */
-const getAll = async (filters) => {
-  const [logs, total] = await harvestRepo.findAll(filters);
+const getAll = async (filters, user) => {
+  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+  const [logs, total] = await harvestRepo.findAll({ ...filters, userId: user.id, isAdmin });
+
   const page = Number(filters.page) || 1;
   const limit = Number(filters.limit) || 50;
 
   return {
     data: logs,
-    pagination: {
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    },
+    pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
   };
 };
 
-/**
- * Get aggregated production statistics.
- */
-const getStats = async (filters) => {
-  const stats = await harvestRepo.getStats(filters);
+const getStats = async (filters, user) => {
+  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+  const stats = await harvestRepo.getStats({ ...filters, userId: user.id, isAdmin });
+
+  const sumTotal = stats._sum.totalCount || 0;
+  const sumLarva = stats._sum.larvaCount || 0;
+  const sumPrepupa = stats._sum.prepupaCount || 0;
 
   return {
     totalSessions: stats._count.id,
-    totalLarva: stats._sum.larvaCount || 0,
-    totalPrepupa: stats._sum.prepupaCount || 0,
+    totalLarva: sumLarva,
+    totalPrepupa: sumPrepupa,
     totalReject: stats._sum.rejectCount || 0,
-    totalHarvested: stats._sum.totalCount || 0,
+    totalHarvested: sumTotal,
     avgLarvaPerSession: Math.round(stats._avg.larvaCount || 0),
     avgPrepupaPerSession: Math.round(stats._avg.prepupaCount || 0),
-    successRate: stats._sum.totalCount > 0
-      ? (((stats._sum.larvaCount + stats._sum.prepupaCount) / stats._sum.totalCount) * 100).toFixed(2)
-      : 0,
+    successRate: sumTotal > 0 ? (((sumLarva + sumPrepupa) / sumTotal) * 100).toFixed(2) : 0,
   };
 };
 

@@ -1,13 +1,18 @@
-const express = require('express');
-const router = express.Router();
+// src/routes/settings.routes.js
+const router = require('express').Router();
 const settingsController = require('../controllers/settings.controller');
 const { authenticate, authorize } = require('../middleware/auth');
-const validate = require('../middleware/validate');
-const { updateSettingsSchema } = require('../validations/settings.validation');
 
 router.use(authenticate);
 
+// GET /api/settings
+// Query: ?unitId=unit-001  -> settings unit tertentu
+// (tanpa query)            -> semua settings, admin/superadmin only
 router.get('/', settingsController.get);
-router.put('/', authorize('admin'), validate(updateSettingsSchema), settingsController.update);
+
+// PUT /api/settings
+// Body: { unitId, ...fields }
+// Hanya admin & superadmin yang boleh update settings
+router.put('/', authorize('superadmin', 'admin'), settingsController.update);
 
 module.exports = router;

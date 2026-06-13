@@ -56,4 +56,16 @@ const sendToClient = (ws, data) => {
   }
 };
 
-module.exports = { initWebSocket, broadcast, sendToClient };
+/**
+ * Broadcast dengan format event standar
+ * { type, data, timestamp }
+ */
+const broadcastEvent = (type, data) => {
+  broadcast({
+    type,
+    data,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+module.exports = { initWebSocket, broadcast, sendToClient, broadcastEvent };

@@ -3,7 +3,9 @@ const { handleSensorData } = require('./handlers/sensor.handler');
 const { handleNodeStatus } = require('./handlers/nodeStatus.handler');
 const { handleHarvestResult } = require('./handlers/harvest.handler');
 const { handleDeviceError } = require('./handlers/error.handler');
-const { handleInfraredData } = require('./handlers/trigger.handler')
+const { handleInfraredData } = require('./handlers/trigger.handler');
+const { handleAiDetection } = require('./handlers/ai.handler');
+const { handleAiStatus }    = require('./handlers/aiStatus.handler');
 
 let client = null;
 
@@ -11,11 +13,17 @@ let client = null;
 // TOPIC DEFINITIONS
 // ================================
 const TOPICS = {
-  SENSOR_DATA:    'sensor/data/+',      // sensor/data/{nodeId}
-  SENSOR_STATUS:  'sensor/status/+',    // sensor/status/{nodeId}
-  HARVEST_RESULT: 'harvest/result',     // from Raspberry Pi CV
-  DEVICE_ERROR:   'device/error/+',     // device/error/{nodeId}
-  TRIGGER_DATA: 'sensor/trigger/+'
+  // -- Sensor Detection --
+  SENSOR_DATA:    'sensor/data/+', 
+  SENSOR_STATUS:  'sensor/status/+', 
+  HARVEST_RESULT: 'harvest/result',  
+  DEVICE_ERROR:   'device/error/+',  
+  TRIGGER_DATA: 'sensor/trigger/+',
+
+  // ── AI Detection ──
+  AI_DETECTION:   'ai/detection',    
+  AI_STATUS:      'ai/status',       
+  AI_COMMAND:     'ai/command',        
 };
 
 const initMqtt = () => {
@@ -102,6 +110,16 @@ const routeMessage = (topic, data) => {
     const nodeId = topic.split('/')[2];
     handleDeviceError(nodeId, data);
     return;
+  }
+
+  if (topic === 'ai/detection') {
+      handleAiDetection(data);
+      return;
+  }
+
+  if (topic === 'ai/status') {
+      handleAiStatus(data);
+      return;
   }
 };
 

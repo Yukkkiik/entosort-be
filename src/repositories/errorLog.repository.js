@@ -1,29 +1,23 @@
+// src/repositories/errorLog.repository.js
 const prisma = require('../config/prisma');
 
 const create = (data) => prisma.errorLog.create({ data });
 
-const findAll = ({ nodeId, resolved, severity, limit = 50 }) => {
-  const where = {};
-  if (nodeId) where.nodeId = nodeId;
-  if (resolved !== undefined) where.resolved = resolved === 'true' || resolved === true;
-  if (severity) where.severity = severity;
-
-  return prisma.errorLog.findMany({
-    where,
-    orderBy: { occurredAt: 'desc' },
-    take: Number(limit),
-    include: { node: { select: { nodeId: true } } },
-  });
-};
-
-const resolve = (id) =>
-  prisma.errorLog.update({ where: { id }, data: { resolved: true } });
-
-const findUnresolved = (limit = 10) =>
+const findUnresolved = (limit = 5) =>
   prisma.errorLog.findMany({
     where: { resolved: false },
     orderBy: { occurredAt: 'desc' },
-    take: limit,
+    take: Number(limit),
   });
 
-module.exports = { create, findAll, resolve, findUnresolved };
+const findByUnitId = (unitId, { limit = 50 } = {}) =>
+  prisma.errorLog.findMany({
+    where: { unitId },
+    orderBy: { occurredAt: 'desc' },
+    take: Number(limit),
+  });
+
+const resolve = (id) =>
+  prisma.errorLog.update({ where: { id: Number(id) }, data: { resolved: true } });
+
+module.exports = { create, findUnresolved, findByUnitId, resolve };

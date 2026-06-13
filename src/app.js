@@ -21,9 +21,7 @@ const WS_PORT = process.env.WS_PORT || 3001;
 // ================================
 app.use(helmet());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')  
-    : 'http://192.168.1.15:3002',               
+  origin: process.env.ALLOWED_ORIGINS,            
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,   

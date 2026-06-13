@@ -1,23 +1,34 @@
+// src/repositories/harvest.repository.js
 const prisma = require('../config/prisma');
 
 const create = (data) => prisma.harvestLog.create({ data });
 
-const findAll = ({ nodeId, from, to, limit = 50, page = 1 }) => {
+// Peternak hanya boleh lihat panen dari unit miliknya sendiri (unit.peterId)
+const buildWhere = ({ unitId, from, to, userId, isAdmin }) => {
   const where = {};
-  if (nodeId) where.nodeId = nodeId;
+  if (!isAdmin && userId) {
+    where.unit = { peterId: Number(userId) };
+  }
+  if (unitId) where.unitId = unitId;
   if (from || to) {
     where.recordedAt = {};
     if (from) where.recordedAt.gte = new Date(from);
     if (to) where.recordedAt.lte = new Date(to);
   }
+  return where;
+};
 
-  const skip = (Number(page) - 1) * Number(limit);
+const findAll = (filters) => {
+  const where = buildWhere(filters);
+  const page = Number(filters.page) || 1;
+  const limit = Number(filters.limit) || 50;
+  const skip = (page - 1) * limit;
 
   return Promise.all([
     prisma.harvestLog.findMany({
       where,
       orderBy: { recordedAt: 'desc' },
-      take: Number(limit),
+      take: limit,
       skip,
       include: { user: { select: { id: true, username: true } } },
     }),
@@ -25,15 +36,8 @@ const findAll = ({ nodeId, from, to, limit = 50, page = 1 }) => {
   ]);
 };
 
-const getStats = ({ nodeId, from, to }) => {
-  const where = {};
-  if (nodeId) where.nodeId = nodeId;
-  if (from || to) {
-    where.recordedAt = {};
-    if (from) where.recordedAt.gte = new Date(from);
-    if (to) where.recordedAt.lte = new Date(to);
-  }
-
+const getStats = (filters) => {
+  const where = buildWhere(filters);
   return prisma.harvestLog.aggregate({
     where,
     _sum: { larvaCount: true, prepupaCount: true, rejectCount: true, totalCount: true },
@@ -52,7 +56,10 @@ const findForReport = ({ from, to }) => {
   return prisma.harvestLog.findMany({
     where,
     orderBy: { recordedAt: 'asc' },
-    include: { user: { select: { username: true } }, node: { select: { nodeId: true } } },
+    include: {
+      user: { select: { username: true } },
+      unit: { select: { unitId: true } },
+    },
   });
 };
 

@@ -1,18 +1,19 @@
-const express = require('express');
-const router = express.Router();
+// src/routes/node.routes.js
+// Read-only: status hardware ESP32 & RPi.
+// Node dibuat otomatis dari MQTT heartbeat, bukan dari HTTP.
+const router = require('express').Router();
 const nodeController = require('../controllers/node.controller');
-const { authenticate, authorize } = require('../middleware/auth');
-const validate = require('../middleware/validate');
-const { createNodeSchema,updateNodeSchema,assignUserSchema } = require('../validations/node.validation');
+const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
 
-router.get('/', nodeController.getAll);
-router.get('/:id/status', nodeController.getStatus);
-router.post('/', authorize('admin'), validate(createNodeSchema), nodeController.create);
-router.put('/:id', authorize('admin'), nodeController.update);
-router.delete('/:id', authorize('admin'), nodeController.remove);
-router.post('/:nodeId/assign', authorize('admin'), validate(assignUserSchema), nodeController.assignUser);
-router.delete('/:nodeId/assign', authorize('admin'), nodeController.removeUser);
+// GET /api/nodes/:unitId         -- semua node (ESP32 + RPi) milik unit
+router.get('/:unitId', nodeController.getByUnitId);
+
+// GET /api/nodes/:unitId/esp32   -- hanya ESP32
+router.get('/:unitId/esp32', nodeController.getEsp32);
+
+// GET /api/nodes/:unitId/rpi     -- hanya Raspberry Pi
+router.get('/:unitId/rpi', nodeController.getRpi);
 
 module.exports = router;

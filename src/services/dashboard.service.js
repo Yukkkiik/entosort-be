@@ -1,34 +1,42 @@
-const nodeRepo = require('../repositories/node.repository');
+// src/services/dashboard.service.js
+const unitRepo = require('../repositories/unit.repository');
 const sensorRepo = require('../repositories/sensor.repository');
 const harvestRepo = require('../repositories/harvest.repository');
 const errorLogRepo = require('../repositories/errorLog.repository');
 
 const getSummary = async () => {
-  const [nodes, latestSensors, harvestStats, recentErrors] = await Promise.all([
-    nodeRepo.findAll(),
-    sensorRepo.findLatestPerNode(),
-    harvestRepo.getStats({}),
+  const [units, latestSensors, harvestStats, recentErrors] = await Promise.all([
+    unitRepo.findAll(),
+    sensorRepo.findLatestPerUnit(),
+    harvestRepo.getStats({ isAdmin: true }),
     errorLogRepo.findUnresolved(5),
   ]);
 
-  const onlineNodes = nodes.filter((n) => n.status === 'online').length;
+  const onlineUnits = units.filter((u) => u.status === 'online').length;
 
   return {
-    nodes: {
-      total: nodes.length,
-      online: onlineNodes,
-      offline: nodes.length - onlineNodes,
-      list: nodes.map((n) => ({
-        id: n.id,
-        nodeId: n.nodeId,
-        status: n.status,
-        lastSeen: n.lastSeen,
-        firmware: n.firmware,
-        ipAddress: n.ipAddress,
+    units: {
+      total: units.length,
+      online: onlineUnits,
+      offline: units.length - onlineUnits,
+      list: units.map((u) => ({
+        id: u.id,
+        unitId: u.unitId,
+        status: u.status,
+        location: u.location,
+        peternak: u.peternak ? u.peternak.username : null,
+        nodes: (u.nodes || []).map((n) => ({
+          nodeId: n.nodeId,
+          nodeType: n.nodeType,
+          status: n.status,
+          firmware: n.firmware,
+          ipAddress: n.ipAddress,
+          lastSeen: n.lastSeen,
+        })),
       })),
     },
     environment: latestSensors.map((s) => ({
-      nodeId: s.nodeId,
+      unitId: s.unitId,
       temperature: s.temperature,
       humidity: s.humidity,
       pressure: s.pressure,
@@ -43,7 +51,8 @@ const getSummary = async () => {
     },
     recentErrors: recentErrors.map((e) => ({
       id: e.id,
-      nodeId: e.nodeId,
+      unitId: e.unitId,
+      nodeType: e.nodeType,
       errorType: e.errorType,
       message: e.message,
       severity: e.severity,

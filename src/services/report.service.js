@@ -1,55 +1,126 @@
-const nodeRepo = require('../repositories/node.repository');
-const sensorRepo = require('../repositories/sensor.repository');
-const harvestRepo = require('../repositories/harvest.repository');
-const errorLogRepo = require('../repositories/errorLog.repository');
+// src/services/report.service.js
+const reportRepo   = require('../repositories/report.repository');
+const unitRepo     = require('../repositories/unit.repository');
+const { generateHarvestExcel } = require('../utils/excelExporter');
+const { generateHarvestPdf }   = require('../utils/pdfExporter');
+const { calcStats }            = require('../utils/exportHelpers');
+const { AppError } = require('../middleware/errorHandler');
 
-const getSummary = async () => {
-  const [nodes, latestSensors, harvestStats, recentErrors] = await Promise.all([
-    nodeRepo.findAll(),
-    sensorRepo.findLatestPerNode(),
-    harvestRepo.getStats({}),
-    errorLogRepo.findUnresolved(5),
-  ]);
+// ─────────────────────────────────────────────────────────────
+// Helper: pastikan role boleh export
+// ─────────────────────────────────────────────────────────────
+const checkExportAccess = (user) => {
+  if (user.role === 'superadmin') {
+    throw new AppError(
+      'Superadmin tidak memiliki unit langsung. Gunakan akun admin atau peternak untuk export laporan.',
+      403
+    );
+  }
+};
 
-  const onlineNodes = nodes.filter((n) => n.status === 'online').length;
+// ─────────────────────────────────────────────────────────────
+// Helper: validasi akses ke unitId spesifik
+// ─────────────────────────────────────────────────────────────
+const validateUnitAccess = async (unitId, user) => {
+  if (!unitId) return; // tanpa unitId = ambil semua unit miliknya (sudah difilter di repo)
+
+  const unit = await unitRepo.findByUnitId(unitId);
+  if (!unit) throw new AppError(`Unit '${unitId}' not found`, 404);
+
+  if (user.role === 'admin' && unit.adminId !== user.id) {
+    throw new AppError('Akses ditolak: unit ini bukan milik admin Anda', 403);
+  }
+  if (user.role === 'peternak' && unit.peterId !== user.id) {
+    throw new AppError('Akses ditolak: Anda hanya bisa ekspor data unit Anda sendiri', 403);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// getDailyReport
+// ─────────────────────────────────────────────────────────────
+const getDailyReport = async ({ unitId, date }, user) => {
+  checkExportAccess(user);
+  await validateUnitAccess(unitId, user);
+
+  const target = date ? new Date(date) : new Date();
+  if (isNaN(target.getTime())) throw new AppError('Format tanggal tidak valid', 400);
+
+  const from = new Date(target); from.setHours(0,  0,  0,   0);
+  const to   = new Date(target); to.setHours(23, 59, 59, 999);
+
+  const logs = await reportRepo.findHarvestForDaily({
+    from, to, unitId,
+    userId: user.id,
+    role:   user.role,
+  });
+
+  const stats = calcStats(logs);
 
   return {
-    nodes: {
-      total: nodes.length,
-      online: onlineNodes,
-      offline: nodes.length - onlineNodes,
-      list: nodes.map((n) => ({
-        id: n.id,
-        nodeId: n.nodeId,
-        status: n.status,
-        lastSeen: n.lastSeen,
-        firmware: n.firmware,
-        ipAddress: n.ipAddress,
-      })),
-    },
-    environment: latestSensors.map((s) => ({
-      nodeId: s.nodeId,
-      temperature: s.temperature,
-      humidity: s.humidity,
-      pressure: s.pressure,
-      recordedAt: s.recordedAt,
-    })),
-    production: {
-      totalSessions: harvestStats._count.id,
-      totalLarva: harvestStats._sum.larvaCount || 0,
-      totalPrepupa: harvestStats._sum.prepupaCount || 0,
-      totalReject: harvestStats._sum.rejectCount || 0,
-      totalHarvested: harvestStats._sum.totalCount || 0,
-    },
-    recentErrors: recentErrors.map((e) => ({
-      id: e.id,
-      nodeId: e.nodeId,
-      errorType: e.errorType,
-      message: e.message,
-      severity: e.severity,
-      occurredAt: e.occurredAt,
+    date:     from.toISOString().slice(0, 10),
+    unitId:   unitId || 'semua unit milik Anda',
+    stats,
+    sessions: logs.map((l) => ({
+      id:            l.id,
+      unitId:        l.unitId,
+      peternak:      l.user?.username || '-',
+      larvaCount:    l.larvaCount,
+      prepupaCount:  l.prepupaCount,
+      rejectCount:   l.rejectCount,
+      totalCount:    l.totalCount,
+      durationSec:   l.durationSec,
+      triggerSource: l.triggerSource,
+      recordedAt:    l.recordedAt,
     })),
   };
 };
 
-module.exports = { getSummary };
+// ─────────────────────────────────────────────────────────────
+// exportPdf
+// ─────────────────────────────────────────────────────────────
+const exportPdf = async ({ from, to, unitId }, user) => {
+  checkExportAccess(user);
+  await validateUnitAccess(unitId, user);
+
+  const logs = await reportRepo.findHarvestForExport({
+    from, to, unitId,
+    userId: user.id,
+    role:   user.role,
+  });
+
+  if (logs.length === 0) {
+    throw new AppError('Tidak ada data panen pada filter yang dipilih', 404);
+  }
+
+  return generateHarvestPdf(
+    logs,
+    { from, to, unitId },
+    { exportedBy: user.username, role: user.role }
+  );
+};
+
+// ─────────────────────────────────────────────────────────────
+// exportXlsx
+// ─────────────────────────────────────────────────────────────
+const exportXlsx = async ({ from, to, unitId }, user) => {
+  checkExportAccess(user);
+  await validateUnitAccess(unitId, user);
+
+  const logs = await reportRepo.findHarvestForExport({
+    from, to, unitId,
+    userId: user.id,
+    role:   user.role,
+  });
+
+  if (logs.length === 0) {
+    throw new AppError('Tidak ada data panen pada filter yang dipilih', 404);
+  }
+
+  return generateHarvestExcel(
+    logs,
+    { from, to, unitId },
+    { exportedBy: user.username, role: user.role }
+  );
+};
+
+module.exports = { getDailyReport, exportPdf, exportXlsx };

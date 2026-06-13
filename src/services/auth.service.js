@@ -1,5 +1,5 @@
 const userRepo = require('../repositories/user.repository');
-const AppError = require('../middleware/errorHandler');
+const { AppError } = require('../middleware/errorHandler');
 const { generateToken } = require('../utils/jwt');
 const { comparePassword } = require('../utils/password');
 const { compare } = require('bcryptjs');

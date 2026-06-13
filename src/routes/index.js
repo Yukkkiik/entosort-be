@@ -1,26 +1,16 @@
-const express = require('express');
-const router = express.Router();
+const router = require('express').Router();
  
-const authRoutes = require('./auth.routes');
-const userRoutes = require('./user.routes');
-const nodeRoutes = require('./node.routes');
-const sensorRoutes = require('./sensor.routes');
-const harvestRoutes = require('./harvest.routes');
-const controlRoutes = require('./control.routes');
-const settingsRoutes = require('./settings.routes');
-const errorRoutes = require('./error.routes');
-const reportRoutes = require('./report.routes');
-const dashboardRoutes = require('./dashboard.routes');
- 
-router.use('/auth', authRoutes);
-router.use('/users', userRoutes);
-router.use('/nodes', nodeRoutes);
-router.use('/sensor', sensorRoutes);
-router.use('/harvest', harvestRoutes);
-router.use('/control', controlRoutes);
-router.use('/settings', settingsRoutes);
-router.use('/errors', errorRoutes);
-router.use('/report', reportRoutes);
-router.use('/dashboard', dashboardRoutes);
+router.use('/auth', require('./auth.routes'));
+router.use('/users', require('./user.routes'));
+router.use('/nodes', require('./node.routes'));
+router.use('/units', require('./unit.routes'));
+router.use('/sensor', require('./sensor.routes'));
+router.use('/harvest', require('./harvest.routes'));
+router.use('/control', require('./control.routes'));
+router.use('/settings', require('./settings.routes'));
+router.use('/errors', require('./error.routes'));
+router.use('/report', require('./report.routes'));
+router.use('/dashboard', require('./dashboard.routes'));
+router.use('/ai', require('./ai.routes'));
  
 module.exports = router;
