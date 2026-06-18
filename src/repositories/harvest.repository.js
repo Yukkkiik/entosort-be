@@ -18,22 +18,39 @@ const buildWhere = ({ unitId, from, to, userId, isAdmin }) => {
   return where;
 };
 
-const findAll = (filters) => {
-  const where = buildWhere(filters);
-  const page = Number(filters.page) || 1;
-  const limit = Number(filters.limit) || 50;
-  const skip = (page - 1) * limit;
+const findAll = async (params) => {
+  const { page = 1, limit = 50, from, to, nodeId, userId, isAdmin } = params;
+  
+  const where = {};
 
-  return Promise.all([
+  if (from || to) {
+    where.recordedAt = {};
+    if (from) where.recordedAt.gte = new Date(from);
+    if (to)   where.recordedAt.lte = new Date(to);
+  }
+
+  if (nodeId) {
+    where.unitId = nodeId; 
+  }
+
+  if (isAdmin) {
+    where.unit = { adminId: userId };
+  } else {
+    where.unit = { peterId: userId };
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const [logs, total] = await prisma.$transaction([
     prisma.harvestLog.findMany({
       where,
-      orderBy: { recordedAt: 'desc' },
-      take: limit,
       skip,
-      include: { user: { select: { id: true, username: true } } },
+      take: Number(limit),
+      orderBy: { recordedAt: 'desc' },
     }),
-    prisma.harvestLog.count({ where }),
+    prisma.harvestLog.count({ where })
   ]);
+
+  return [logs, total];
 };
 
 const getStats = (filters) => {

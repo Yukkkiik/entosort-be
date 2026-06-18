@@ -10,12 +10,12 @@ const create = catchAsync(async (req, res) => {
 });
 
 const getAll = catchAsync(async (req, res) => {
-  const result = await harvestService.getAll(req.query, req.user.id);
+  const result = await harvestService.getAll(req.query, req.user);
   res.json({ success: true, ...result });
 });
 
 const getStats = catchAsync(async (req, res) => {
-  const stats = await harvestService.getStats(req.query, req.user.id);
+  const stats = await harvestService.getStats(req.query, req.user);
   res.json({ success: true, data: stats });
 });
 

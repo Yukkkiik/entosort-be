@@ -54,8 +54,21 @@ const create = async ({
 };
 
 const getAll = async (filters, user) => {
-  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
-  const [logs, total] = await harvestRepo.findAll({ ...filters, userId: user.id, isAdmin });
+  const currentUser = user || {};
+  
+  if (currentUser.role === 'superadmin') {
+    return {
+      data: [],
+      pagination: { total: 0, page: 1, limit: 50, totalPages: 0 },
+    };
+  }
+
+  const isAdmin = currentUser.role === 'admin';
+  const [logs, total] = await harvestRepo.findAll({ 
+    ...filters, 
+    userId: currentUser.id, 
+    isAdmin 
+  });
 
   const page = Number(filters.page) || 1;
   const limit = Number(filters.limit) || 50;
@@ -67,8 +80,23 @@ const getAll = async (filters, user) => {
 };
 
 const getStats = async (filters, user) => {
-  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
-  const stats = await harvestRepo.getStats({ ...filters, userId: user.id, isAdmin });
+  const currentUser = user || {};
+  
+  if (currentUser.role === 'superadmin') {
+    return {
+      totalSessions: 0,
+      totalLarva: 0,
+      totalPrepupa: 0,
+      totalReject: 0,
+      totalHarvested: 0,
+      avgLarvaPerSession: 0,
+      avgPrepupaPerSession: 0,
+      successRate: 0,
+    };
+  }
+
+  const isAdmin = currentUser.role === 'admin';
+  const stats = await harvestRepo.getStats({ ...filters, userId: currentUser.id, isAdmin });
 
   const sumTotal = stats._sum.totalCount || 0;
   const sumLarva = stats._sum.larvaCount || 0;
